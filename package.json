@@ -1,9 +1,20 @@
 {
+  "name": "my-engine",
+  "version": "1.0.0",
+  "description": "A JS engine library",
+  "main": "dist/engine.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "prepublishOnly": "npm run build"
+  },
   "devDependencies": {
     "@rollup/plugin-terser": "^0.4.4",
     "rollup": "^4.59.0"
   },
-  "scripts": {
-    "build": "rollup -c"
-  }
+  "keywords": ["engine", "library", "js"],
+  "author": "Your Name",
+  "license": "MIT"
 }
