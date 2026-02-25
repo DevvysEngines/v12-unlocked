@@ -5,6 +5,12 @@ node_modules/
 index.html
 user/
 
+# Source maps
+*.map
+
+# For files that shouldn't be updated on this commit
+*.no
+
 # Logs
 *.log
 
