@@ -4,6 +4,7 @@ node_modules/
 # Local testing files
 index.html
 user/
+tests/
 
 # Source maps
 *.map
