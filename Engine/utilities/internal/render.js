@@ -1,4 +1,4 @@
-import { game } from "../../engine.js";
+import { game } from "../../Unlocked.js";
 
 export function giveColorWithTables(color,transparency){
     return `${color[0]},${color[1]},${color[2]},${transparency}`;

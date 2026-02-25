@@ -1,4 +1,4 @@
-import { game } from "../../engine.js";
+import { game } from "../../Unlocked.js";
 import { eventNode } from "../../events/eventNode.js";
 import { scene } from "../../internal/scene.js";
 let en = eventNode;

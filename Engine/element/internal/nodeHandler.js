@@ -1,4 +1,4 @@
-import { game } from "../../engine.js";
+import { game } from "../../Unlocked.js";
 
 let nodeScopes = {
     "node": "insertNode"

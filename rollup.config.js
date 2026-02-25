@@ -1,7 +1,7 @@
 import terser from '@rollup/plugin-terser';
 
 export default {
-  input: 'engine/engine.js',
+  input: 'engine/Unlocked.js',
   output: [
     // Normal readable build
     {

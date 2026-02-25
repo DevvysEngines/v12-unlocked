@@ -1,5 +1,5 @@
 import { element } from "../element/element.js";
-import { game } from "../engine.js";
+import { game } from "../Unlocked.js";
 
 export class entity extends element {
     constructor(properties,renderer,hitbox,...allNodes){
