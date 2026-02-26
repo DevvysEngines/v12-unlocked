@@ -12,6 +12,9 @@ tests/
 # For files that shouldn't be updated on this commit
 *.hidden
 
+# No need for this to be in the repo
+package-lock.json
+
 # Logs
 *.log
 
