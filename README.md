@@ -1,5 +1,5 @@
-# Unlocked.js
 <sub>(In Progress)</sub>
+# Unlocked.js
 
 > **"Sometimes you have to dive to soar higher—unless you have an engine."**
 
@@ -21,5 +21,5 @@ Unlocked.js is developed and maintained by **DevvysEngines**.
 This project is licensed under the [MIT License](LICENSE).  
 You're free to use, modify, and distribute it — just make sure to credit the original project.
 
-Thank you!
+Thank you! - 
 ##### Unlocked - v0.65.0
