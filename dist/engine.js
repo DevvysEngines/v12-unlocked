@@ -323,7 +323,7 @@ class chunk{
         //this.renderChunk(ctx);
         Object.keys(this.elements).forEach((key)=>{
             //console.log(`rgb(${key})`)
-            ctx.fillStyle = `rgb(${key})`;
+            ctx.fillStyle = `rgba(${key})`;
             ctx.beginPath();
             Object.values(this.elements[key]).forEach((element)=>{
                 element.render(ctx);
@@ -489,6 +489,16 @@ class types{
     }
 }
 
+class script {
+    #defaults = {
+        fired:function(){}
+        ,signal: `script`
+    }
+    constructor(configuration){
+        Object.assign(this,this.#defaults,configuration,{type:`script`});
+    }
+}
+
 let idList = {};
 
 class utilities {
@@ -535,11 +545,139 @@ class utilities {
             module.set_context(script);
             let call = script.proto[type].call(module,...args);
             module.remove_context();
-            if (typeof call != `object`)return;
-            Object.assign(script,call);
+            if (call === undefined) return;
+            if (Array.isArray(call)) { script.info = call; return; }
+            if (typeof call === `object`) Object.assign(script, call);
         }
     }
 }
+
+const convert = utilities.system_signal_converter;
+const EVENT_SCRIPT_DEFAULTS = 
+{
+    path: `properties/x`
+    ,fired(){}
+    ,on_insert(){}
+    ,on_removal(){}
+    ,detect: `set`
+};
+
+class event extends script
+{
+    constructor
+    (
+        path = `properties/x`
+        ,fired_function = function(){}
+        ,on_insert_function = function(){}
+        ,on_removal_function = function(){}
+        ,detect = `set`
+    )
+    {
+        let raw_path;
+        let raw_detect;
+        let rest = {};
+        if (typeof path === `object`)
+        {
+            ({path: raw_path, detect: raw_detect, ...rest} = 
+            {
+                ...EVENT_SCRIPT_DEFAULTS
+                ,...path
+            });
+        }
+        else
+        {
+            raw_path = path;
+            raw_detect = detect;
+            rest = 
+            {
+                fired: fired_function
+                ,on_insert: on_insert_function
+                ,on_removal: on_removal_function
+                ,event_node: true
+            };
+        }
+
+        super
+        (
+            {
+                ...rest
+                ,signal: convert(raw_path, raw_detect)
+            }
+        );
+
+    }
+}
+
+var event$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    event: event
+});
+
+const FRAME_SCRIPT_DEFAULTS = 
+{
+    fired_function(){}
+    ,on_insert_function(){}
+    ,on_removal_function(){}
+    ,detect: `update`
+};
+
+class frame extends script
+{
+    constructor
+    (
+        fired_function = function(){}
+        ,on_insert_function = function(){}
+        ,on_removal_function = function(){}
+        ,detect = `update`
+    )
+    {
+        let raw_detect;
+        let rest;
+        if (typeof fired_function === `object`)
+        {
+            (
+                {detect: raw_detect, ...rest} = 
+                {
+                    ...FRAME_SCRIPT_DEFAULTS
+                    ,...fired_function
+                }
+            );
+        }
+        else
+        {
+            raw_detect = detect;
+            rest = 
+            {
+                fired: fired_function
+                ,on_insert: on_insert_function
+                ,on_removal: on_removal_function
+                ,detect
+            };
+        }
+        super
+        (
+            {
+                ...rest
+                ,signal: `-u$${raw_detect[0]}`
+            }
+        );
+    }
+}
+
+var frame$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    frame: frame
+});
+
+const scripts = {
+    ...event$1
+    ,...frame$1
+};
+
+var scripts$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    scripts: scripts
+});
 
 class base_module{
     #context = [];
@@ -663,7 +801,8 @@ function script_handler$1(sCls)
         (script=this.context)
         {
             if (typeof script == `string`)script = this.script(script);
-            this.set();
+            this.delete(`scripts_storage/${script.proto.signal}/${script.id}`);
+            this.delete(`scripts_storage/${script.id}`);
         }
         script
         (id=this.context.id)
@@ -697,6 +836,7 @@ function script_handler$1(sCls)
             Object.keys(scripts).forEach((id)=>
             {
                 let script = this.script(id);
+                if (!script)return;
                 script.run
                 (
                     ...args,
@@ -708,6 +848,393 @@ function script_handler$1(sCls)
 }
 
 let module$1 = class module extends script_handler$1(base_module){};
+
+class v9 {
+    static module = module$1;
+    static utilities = utilities;
+    static script = script;
+}
+
+const system_presets = 
+{
+    base_element: 
+    [
+        [
+            new scripts.event
+            (
+                {
+                    path: `scripts_storage/`
+                    ,fired([,new_script]){
+                        if (new_script.proto.on_insert){
+                            v9.utilities.ctxUse(new_script,this,'on_insert')(...new_script.info);
+                        }
+                    }      
+                }
+            )
+        ]
+        ,[
+            new scripts.event
+            (
+                {
+                    path: `scripts_storage/`
+                    ,detect: `delete`
+                    ,fired([old_script]){
+                        if (old_script.proto.on_removal){
+                            v9.utilities.ctxUse(old_script,this,'on_removal')(...old_script.info);
+                        }
+                    }      
+                }
+            )
+        ]
+    ]
+};
+/*
+import { eventNode } from "../../events/eventNode.js";
+import { scene } from "../../internal/scene.js";
+let en = eventNode;
+
+function urp(path,[ov,v]){ // update renderer property
+    let chunk = this.chunk;
+    if (!chunk)return;
+    this.system_set([`renderer`,path],ov);
+    chunk.removeElement(this);
+    this.system_set([`renderer`,path],v);
+    chunk.addElement(this);
+}
+function pc(type){ // position changed
+    let chunk = this.chunk;
+    if (!chunk)return;
+    let newchunk = game.currentscene.locateChunkByPos(this.x,this.y);
+    if (!newchunk)return;
+    if (chunk.pos[type]!=newchunk.pos[type]){
+        game.currentscene.moveElementToChunk(this,newchunk);
+    }
+}
+
+export let system_presets = {
+    element: [
+        [new en(`xPositionChange`,[`system/presets/x/position/change`],[`properties/x`],undefined,function(){pc.call(this,`x`);})]
+        ,[new en(`yPositionChange`,[`system/presets/y/position/change`],[`properties/y`],undefined,function(){pc.call(this,`y`);})]
+        ,[new en(`colorChange`,[`system/presets/color`],[`renderer/color`],undefined,function(v){urp.call(this,`color`,v);})]
+        ,[new en(`transparencyChange`,[`system/presets/transparency`],[`renderer/transparency`],undefined,function(v){urp.call(this,`transparency`,v);})]
+        ,[new en(`uiOn`,[`ui/system/on`],[`properties/ui`],function(ov,v){return v;},function(){this.setToUi()})]
+        ,[new en(`uiOff`,[`ui/system/off`],[`properties/ui`],function(ov){return ov;},function(){this.removeFromUi()})]
+        ,[new en(`usesMouseChange`,[`system/input`],[`properties/usesMouse`],undefined,function(){let chunk = this.chunk;if(!chunk)return;game.currentscene.moveElementToChunk(this,chunk);})]
+    ]
+}
+*/
+
+var system_presets$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    system_presets: system_presets
+});
+
+class eventNode{
+    #defaults = {
+        triggerTimes: 0
+        ,active: true
+        ,condition:function(){return true;}
+        ,trigger:function(){return true;}
+        ,Name:`eventNode`
+        ,tags:[]
+        ,path:[`properties/health`]
+        ,onApply:function(){}
+        ,onFinished:function(){}
+    }
+    constructor(Name, tags, path, condition, trigger, triggerTimes, onApply, onFinished){
+        if (typeof Name !== `object`){Name={Name, tags, path, condition, trigger, triggerTimes, onApply, onFinished};}
+        Object.assign(
+            this
+            ,{...this.#defaults}
+            ,Object.fromEntries(
+                Object.entries(Name).filter(([_, v]) => v !== undefined)
+            )
+        );
+        this.tags = utils$1.normalizePath(this.tags);
+        this.path = utils$1.normalizePath(this.path);
+        this.type = `eventNode`;
+    }
+}
+
+class node{
+    #defaults = {
+        Name:`node`
+        ,tags:[]
+        ,onApply:function(){}
+        ,update:function(){}
+        ,onFinished:function(){}
+        ,type:`node`
+    }
+    constructor(Name, tags, update, onApply, onFinished){
+        if (typeof Name !== `object`){Name={Name, tags, update, onApply, onFinished, type:`node`};}
+        Object.assign(
+            this
+            ,{...this.#defaults}
+            ,Object.fromEntries(
+                Object.entries(Name).filter(([_, v]) => v !== undefined)
+            )
+        );
+        this.tags = utils$1.normalizePath(this.tags);
+        this.type = `node`;
+    }
+}
+
+let en$1 = eventNode;
+
+let mT = [`mouse`];
+
+function mouseFn(v,fn,...args){ // when the mouse leaves or enters
+    let call = fn.call(this,...args);
+    if (call){if(call.info)call.info.unshift(fn);}    return call;
+}
+
+function sumt(fn){ // sets uses mouse true
+    this.set(`properties/usesMouse`,true);
+    if (!fn){
+        return {info:[function(){}]}
+    }
+}
+
+function rfum(){ // removes from uses mouse
+    if (this.searchForEventNodeByTag(mT).length<=0){
+        this.set(`properties/usesMouse`,false);
+    }
+}
+
+/*
+
+function makeItWork(element, ){
+
+}
+
+Dragging: new en({
+    condition(ov,v){
+        return v; 
+    }
+    trigger(v,...args){
+        this.do(
+            new game.node({
+                update:mouseFn
+            }
+            ,...args
+        )
+    }
+})
+
+
+*/
+
+new node({
+    update(delta, fn, ...args){
+        fn.call(this, ...args);
+    }
+});
+
+
+function rpths(path){ // returns paths
+    return {
+        Down: new en$1(`mouseDown`,[`mouse/presets/down/${path}`],[`mouse/${path}/down`],rv,...mE)
+        ,Up: new en$1(`mouseUp`,[`mouse/presets/up/${path}`],[`mouse/${path}/down`],rov,...mE)
+        ,Dragging: new en$1({
+            path:[`mouse/${path}/dragging`]
+            ,condition:rv
+            ,trigger(){
+                this.do(
+
+                );
+            }
+            ,onApply:sumt
+            ,onFinished:rfum
+        })
+    }
+}
+
+function rv(ov,v){return v;} // return value
+function rov(ov){return ov;} // return old value(reversed)
+
+let mE = [mouseFn,0,sumt,rfum]; // main functions
+
+let mouse = {
+    Enters: new en$1(`mouseEntered`,[`mouse/presets/entered`],[`mouse/over`],rv,...mE)
+    ,Leaves: new en$1(`mouseLeft`,[`mouse/presets/left`],[`mouse/over`],rov,...mE)
+    ,Left:rpths(`left`)
+    ,Right:rpths(`right`)
+    ,Middle:rpths(`middle`)
+};
+
+var mouse$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    mouse: mouse
+});
+
+let effect = class {
+    node;
+    constructor(Name,tags,onApply,update,onFinished){
+        this.node = new node(Name,tags,onApply,update,onFinished);
+        this.Name = this.node.Name;
+        this.tags = this.node.tags;
+        this.type = this.node.type;
+    }
+    onApply(time=1, ...info){
+        time*=60;//utils.tosec(time)*1000/16.6666;
+        let app = this.currentNode.node.node.onApply.call(this,...info);
+        if (app){
+            if (!app.info){app.info=[];}
+            app.info = [time,...app.info];
+            return app;
+        }        return {info:[time,...info]};
+    }
+    update(delta, time,...info){
+        if (time<=0){
+            this.remove();
+            return;
+        }
+        time-=delta;
+        let upd = this.currentNode.node.node.update.call(this, delta, ...info);
+        if (upd){
+            if (!upd.info){upd.info=[];}
+            upd.info = [time,...upd.info];
+            return upd;
+        }
+        return {info:[time,...info]};
+    }
+    onFinished(time,...info){
+        let fin = this.currentNode.node.node.onFinished.call(this,...info);
+        if (fin){
+            if (!fin.info){fin.info=[];}            fin.info = [time,...fin.info];
+            return fin;
+        }
+    }
+};
+
+var effect$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    effect: effect
+});
+
+let en = eventNode;
+
+let Links = {
+    arc:
+    [
+        new en({
+            path:[`renderer/radius`]
+            ,tags:[`arc`]
+            ,trigger:function([ov,v]){
+                this.system_set(`hitbox/radius`,v);
+            }
+            ,onApply:function(){
+                this.set(`hitbox/radius`,this.system_get([`renderer`,`radius`]));
+            }
+        })
+    ]
+    ,box:
+    [
+        new en({
+            path:[`renderer/width`]
+            ,tags:[`box`]
+            ,trigger:function([ov,v]){
+                this.set(`hitbox/width`,v);
+            }
+            ,onApply:function(){
+                this.set(`hitbox/width`,this.system_get([`renderer`,`width`]));
+            }
+        })
+        ,new en({
+            path:[`renderer/height`]
+            ,tags:[`box`]
+            ,trigger:function([ov,v]){
+                this.set(`hitbox/height`,v);
+            }
+            ,onApply:function(){
+                this.set(`hitbox/height`,this.system_get([`renderer`,`height`]));
+            }
+        })
+    ]
+    ,txt:
+    [
+        new en({
+            path:[`renderer/string`]
+            ,tags:[`txt`]
+            ,trigger:function([ov,v]){
+                let rend = this.system_get([`renderer`]);
+                let length = utils$1.measureText(v,rend);
+                this.set(`hitbox/width`,length);
+                this.set(`hitbox/height`,rend.fontsize);
+            }
+            ,onApply:function(){
+                let rend = this.system_get([`renderer`]);
+                let length = utils$1.measureText(rend.string,rend);
+                this.set(`hitbox/width`,length);
+                this.set(`hitbox/height`,rend.fontsize);
+            }
+        })
+    ]
+};
+
+let Base = [
+    new en({
+        path:[`renderer/rotation`]
+        ,trigger:function([ov,v]){
+            this.set(`hitbox/rotation`,v);
+        }
+        ,onApply:function(){
+            this.set(`hitbox/rotation`,this.system_get([`renderer`,`rotation`]));
+        }
+    })
+    ,new en({
+        path:[`renderer/x`]
+        ,trigger:function([ov,v]){
+            this.set(`hitbox/x`,v);
+        }
+        ,onApply:function(){
+            this.set(`hitbox/x`,this.system_get([`renderer`,`x`]));
+        }
+    })
+    ,new en({
+        path:[`renderer/y`]
+        ,trigger:function([ov,v]){
+            this.set(`hitbox/y`,v);
+        }
+        ,onApply:function(){
+            this.set(`hitbox/y`,this.system_get([`renderer`,`y`]));
+        }
+    })
+];
+
+let linkHitboxToRenderer = 
+[
+    new en({
+        path:[`renderer/type`]
+        ,tags:[`linkHitboxToRenderer`]
+        ,trigger:function([ov,v]){
+            this.set(`hitbox/type`,v);
+            this.remove(...this.anyNodeByTag(ov));
+            this.add(...Links[v]);
+        }
+        ,onApply:function(){
+            let rType = this.system_get([`renderer`,`type`]);
+            this.set(`hitbox/type`,rType);
+            this.add(...Base);
+            this.add(
+                ...Links[rType]
+            );
+        }
+    })
+];
+
+var linkHitboxToRenderer$1 = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    linkHitboxToRenderer: linkHitboxToRenderer
+});
+
+let presets = {
+    ...system_presets$1
+    ,...mouse$1
+    ,...effect$1
+    ,...linkHitboxToRenderer$1
+    ,...scripts$1
+};
 
 const FILE_VALUE_DEFAULTS = 
 {
@@ -851,6 +1378,9 @@ class baseElement extends module$1 {
             scripts.push(possible_initilization);
             possible_initilization = false;
         }
+
+        this.use
+        (...presets.system_presets.base_element);
 
         this.use
         (...scripts);
@@ -1234,7 +1764,6 @@ get_extension
         ()
         {
             const rend = this.system_get([`renderer`]);
-            console.log(rend.color);
             return game.utils.giveColorWithTables(rend.color,rend.transparency);
         }
 
@@ -1328,618 +1857,6 @@ script_handler
     }
 }
 
-class entity extends element {
-    constructor(properties,renderer,hitbox,...allNodes){
-        super(properties,renderer,hitbox,...allNodes);
-    }
-    setup(){
-        let hI;
-        if(!this.get(`vitals`))this.set(`vitals`,{});
-        if (!this.get(`vitals/maxHealth`))this.set(`vitals/maxHealth`,100);
-        if (!this.get(`vitals/health`))this.set(`vitals/health`,100);
-        hI = this.getHealthInfo;
-        this.batchSet(
-            [`vitals/healthPercentage`,hI.health/hI.maxHealth]
-            ,[`vitals/lastDamaged`,null]
-            ,[`vitals/entitiesThatDamaged`,new Map()]
-            ,[`vitals/lastDamageDealtTo`,null]
-            ,[`vitals/lastDamageDealtAmount`,0]
-            ,[`vitals/entitiesKilled`,0]
-            ,[`vitals/entitiesThatThisDamaged`,new Map()]
-        );
-    }
-    get health(){
-        return this.get(`vitals/health`);
-    }
-    get healthPercentage(){
-        return this.get(`vitals/healthPercentage`)
-    }
-    get getHealthInfo(){
-        return {
-            health: this.health
-            ,maxHealth: this.get(`vitals/maxHealth`)
-            ,healthPercentage: this.healthPercentage
-            ,lastDamaged: this.get(`vitals/lastDamaged`)
-            ,entitiesThatDamaged: this.get(`vitals/entitiesThatDamaged`)
-        }
-    }
-    get getDamageInfo(){
-            return {
-                lastDamageDealtTo: this.get(`vitals/lastDamageDealtTo`)
-                ,lastDamageDealtAmount: this.get(`vitals/lastDamageDealtAmount`)
-                ,entitiesThatThisDamaged: this.get(`vitals/entitiesThatThisDamaged`)
-                ,entitiesKilled: this.get(`vitals/entitiesKilled`)
-            }
-    }
-    Damage(damage,entity){
-        if (!entity)return;else if(!entity.isElement)return;
-        const oldhealth = this.get(`vitals/health`);
-        const eid = entity.id;
-        const id = this.id;
-        this.set(`vitals/health`,oldhealth-damage);
-        this.set(`vitals/lastDamaged`,eid);
-        let hI = this.getHealthInfo;
-        this.set(`vitals/healthPercentage`,hI.health/hI.maxHealth);
-
-        if (!hI.entitiesThatDamaged.has(eid)){
-            let newMap = hI.entitiesThatDamaged;
-            newMap.set(eid,{
-                id: eid
-                ,times: 1
-                ,totalDamage: damage
-                ,lastDamage: damage
-            });
-        } else {
-            let newMap = hI.entitiesThatDamaged;
-            let oldMap = newMap.get(entity.id);
-            newMap.set(eid,{
-                id: eid
-                ,times: oldMap.times+1
-                ,totalDamage: ((oldMap.totalDamage)+damage)
-                ,lastDamage: damage
-            });
-            this.set(`vitals/entitiesThatDamaged`,newMap);
-        }
-
-        entity.set(`vitals/lastDamageDealtTo`,id);
-        entity.set(`vitals/lastDamageDealtAmount`,damage);
-        let dI = entity.getDamageInfo;
-        if (!dI.entitiesThatThisDamaged.has(id)){
-            let newMap = dI.entitiesThatThisDamaged;
-            newMap.set(id,{
-                id: id
-                ,times: 1
-                ,totalDamage: damage
-                ,lastDamage: damage
-            });
-        } else {
-            let newMap = dI.entitiesThatThisDamaged;
-            let oldMap = dI.entitiesThatThisDamaged.get(id);
-            newMap.set(id,{
-                id: id
-                ,times: oldMap.times+1
-                ,totalDamage: ((oldMap.totalDamage)+damage)
-                ,lastDamage: damage
-            });
-        }
-
-        if (damage>=oldhealth){
-            let amm = dI.entitiesKilled+1;
-            entity.set(`vitals/entitiesKilled`,amm);
-            entity.set(`vitals/entitiesKilledAmount`,dI.entitiesKilledAmount+1);
-            this.death();
-        }    }
-    dealDamage(damage,entity){
-        entity.Damage(damage,this);
-    }
-    death(){
-        const hI = this.getHealthInfo;
-        console.log(`${this.Name} has died to ${game.allElements[hI.lastDamaged].Name}!`);
-        this.destroy();
-    };
-    customdestroy(){
-        const id = this.id;
-        let eTTD = this.get(`vitals/entitiesThatThisDamaged`);
-        let eTD = this.get(`vitals/entitiesThatDamaged`);
-        for (let [ki,vi] of eTTD){
-            let entity = game.allElements[vi.id];
-            let newMap = entity.get(`vitals/entitiesThatDamaged`);
-            newMap.delete(id);
-            entity.set(`vitals/entitiesThatDamaged`,newMap);
-        }
-        for (let [kv, vv] of eTD){
-            let entity = game.allElements.get(vv.id);
-            let newMap = entity.get(`vitals/entitiesThatThisDamaged`);
-            newMap.delete(id);
-            entity.set(`vitals/entitiesThatThisDamaged`,newMap);
-        }
-    }
-    customupdate(deltatime){
-
-    }
-}
-
-class eventNode{
-    #defaults = {
-        triggerTimes: 0
-        ,active: true
-        ,condition:function(){return true;}
-        ,trigger:function(){return true;}
-        ,Name:`eventNode`
-        ,tags:[]
-        ,path:[`properties/health`]
-        ,onApply:function(){}
-        ,onFinished:function(){}
-    }
-    constructor(Name, tags, path, condition, trigger, triggerTimes, onApply, onFinished){
-        if (typeof Name !== `object`){Name={Name, tags, path, condition, trigger, triggerTimes, onApply, onFinished};}
-        Object.assign(
-            this
-            ,{...this.#defaults}
-            ,Object.fromEntries(
-                Object.entries(Name).filter(([_, v]) => v !== undefined)
-            )
-        );
-        this.tags = utils$1.normalizePath(this.tags);
-        this.path = utils$1.normalizePath(this.path);
-        this.type = `eventNode`;
-    }
-}
-
-let en$2 = eventNode;
-
-function urp(path,[ov,v]){ // update renderer property
-    let chunk = this.chunk;
-    if (!chunk)return;
-    this.system_set([`renderer`,path],ov);
-    chunk.removeElement(this);
-    this.system_set([`renderer`,path],v);
-    chunk.addElement(this);
-}
-function pc(type){ // position changed
-    let chunk = this.chunk;
-    if (!chunk)return;
-    let newchunk = game.currentscene.locateChunkByPos(this.x,this.y);
-    if (!newchunk)return;
-    if (chunk.pos[type]!=newchunk.pos[type]){
-        game.currentscene.moveElementToChunk(this,newchunk);
-    }
-}
-
-let system_presets = {
-    element: [
-        [new en$2(`xPositionChange`,[`system/presets/x/position/change`],[`properties/x`],undefined,function(){pc.call(this,`x`);})]
-        ,[new en$2(`yPositionChange`,[`system/presets/y/position/change`],[`properties/y`],undefined,function(){pc.call(this,`y`);})]
-        ,[new en$2(`colorChange`,[`system/presets/color`],[`renderer/color`],undefined,function(v){urp.call(this,`color`,v);})]
-        ,[new en$2(`transparencyChange`,[`system/presets/transparency`],[`renderer/transparency`],undefined,function(v){urp.call(this,`transparency`,v);})]
-        ,[new en$2(`uiOn`,[`ui/system/on`],[`properties/ui`],function(ov,v){return v;},function(){this.setToUi();})]
-        ,[new en$2(`uiOff`,[`ui/system/off`],[`properties/ui`],function(ov){return ov;},function(){this.removeFromUi();})]
-        ,[new en$2(`usesMouseChange`,[`system/input`],[`properties/usesMouse`],undefined,function(){let chunk = this.chunk;if(!chunk)return;game.currentscene.moveElementToChunk(this,chunk);})]
-    ]
-};
-
-var system_presets$1 = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    system_presets: system_presets
-});
-
-class node{
-    #defaults = {
-        Name:`node`
-        ,tags:[]
-        ,onApply:function(){}
-        ,update:function(){}
-        ,onFinished:function(){}
-        ,type:`node`
-    }
-    constructor(Name, tags, update, onApply, onFinished){
-        if (typeof Name !== `object`){Name={Name, tags, update, onApply, onFinished, type:`node`};}
-        Object.assign(
-            this
-            ,{...this.#defaults}
-            ,Object.fromEntries(
-                Object.entries(Name).filter(([_, v]) => v !== undefined)
-            )
-        );
-        this.tags = utils$1.normalizePath(this.tags);
-        this.type = `node`;
-    }
-}
-
-let en$1 = eventNode;
-
-let mT = [`mouse`];
-
-function mouseFn(v,fn,...args){ // when the mouse leaves or enters
-    let call = fn.call(this,...args);
-    if (call){if(call.info)call.info.unshift(fn);}    return call;
-}
-
-function sumt(fn){ // sets uses mouse true
-    this.set(`properties/usesMouse`,true);
-    if (!fn){
-        return {info:[function(){}]}
-    }
-}
-
-function rfum(){ // removes from uses mouse
-    if (this.searchForEventNodeByTag(mT).length<=0){
-        this.set(`properties/usesMouse`,false);
-    }
-}
-
-/*
-
-function makeItWork(element, ){
-
-}
-
-Dragging: new en({
-    condition(ov,v){
-        return v; 
-    }
-    trigger(v,...args){
-        this.do(
-            new game.node({
-                update:mouseFn
-            }
-            ,...args
-        )
-    }
-})
-
-
-*/
-
-new node({
-    update(delta, fn, ...args){
-        fn.call(this, ...args);
-    }
-});
-
-
-function rpths(path){ // returns paths
-    return {
-        Down: new en$1(`mouseDown`,[`mouse/presets/down/${path}`],[`mouse/${path}/down`],rv,...mE)
-        ,Up: new en$1(`mouseUp`,[`mouse/presets/up/${path}`],[`mouse/${path}/down`],rov,...mE)
-        ,Dragging: new en$1({
-            path:[`mouse/${path}/dragging`]
-            ,condition:rv
-            ,trigger(){
-                this.do(
-
-                );
-            }
-            ,onApply:sumt
-            ,onFinished:rfum
-        })
-    }
-}
-
-function rv(ov,v){return v;} // return value
-function rov(ov){return ov;} // return old value(reversed)
-
-let mE = [mouseFn,0,sumt,rfum]; // main functions
-
-let mouse = {
-    Enters: new en$1(`mouseEntered`,[`mouse/presets/entered`],[`mouse/over`],rv,...mE)
-    ,Leaves: new en$1(`mouseLeft`,[`mouse/presets/left`],[`mouse/over`],rov,...mE)
-    ,Left:rpths(`left`)
-    ,Right:rpths(`right`)
-    ,Middle:rpths(`middle`)
-};
-
-var mouse$1 = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    mouse: mouse
-});
-
-let effect = class {
-    node;
-    constructor(Name,tags,onApply,update,onFinished){
-        this.node = new node(Name,tags,onApply,update,onFinished);
-        this.Name = this.node.Name;
-        this.tags = this.node.tags;
-        this.type = this.node.type;
-    }
-    onApply(time=1, ...info){
-        time*=60;//utils.tosec(time)*1000/16.6666;
-        let app = this.currentNode.node.node.onApply.call(this,...info);
-        if (app){
-            if (!app.info){app.info=[];}
-            app.info = [time,...app.info];
-            return app;
-        }        return {info:[time,...info]};
-    }
-    update(delta, time,...info){
-        if (time<=0){
-            this.remove();
-            return;
-        }
-        time-=delta;
-        let upd = this.currentNode.node.node.update.call(this, delta, ...info);
-        if (upd){
-            if (!upd.info){upd.info=[];}
-            upd.info = [time,...upd.info];
-            return upd;
-        }
-        return {info:[time,...info]};
-    }
-    onFinished(time,...info){
-        let fin = this.currentNode.node.node.onFinished.call(this,...info);
-        if (fin){
-            if (!fin.info){fin.info=[];}            fin.info = [time,...fin.info];
-            return fin;
-        }
-    }
-};
-
-var effect$1 = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    effect: effect
-});
-
-let en = eventNode;
-
-let Links = {
-    arc:
-    [
-        new en({
-            path:[`renderer/radius`]
-            ,tags:[`arc`]
-            ,trigger:function([ov,v]){
-                this.system_set(`hitbox/radius`,v);
-            }
-            ,onApply:function(){
-                this.set(`hitbox/radius`,this.system_get([`renderer`,`radius`]));
-            }
-        })
-    ]
-    ,box:
-    [
-        new en({
-            path:[`renderer/width`]
-            ,tags:[`box`]
-            ,trigger:function([ov,v]){
-                this.set(`hitbox/width`,v);
-            }
-            ,onApply:function(){
-                this.set(`hitbox/width`,this.system_get([`renderer`,`width`]));
-            }
-        })
-        ,new en({
-            path:[`renderer/height`]
-            ,tags:[`box`]
-            ,trigger:function([ov,v]){
-                this.set(`hitbox/height`,v);
-            }
-            ,onApply:function(){
-                this.set(`hitbox/height`,this.system_get([`renderer`,`height`]));
-            }
-        })
-    ]
-    ,txt:
-    [
-        new en({
-            path:[`renderer/string`]
-            ,tags:[`txt`]
-            ,trigger:function([ov,v]){
-                let rend = this.system_get([`renderer`]);
-                let length = utils$1.measureText(v,rend);
-                this.set(`hitbox/width`,length);
-                this.set(`hitbox/height`,rend.fontsize);
-            }
-            ,onApply:function(){
-                let rend = this.system_get([`renderer`]);
-                let length = utils$1.measureText(rend.string,rend);
-                this.set(`hitbox/width`,length);
-                this.set(`hitbox/height`,rend.fontsize);
-            }
-        })
-    ]
-};
-
-let Base = [
-    new en({
-        path:[`renderer/rotation`]
-        ,trigger:function([ov,v]){
-            this.set(`hitbox/rotation`,v);
-        }
-        ,onApply:function(){
-            this.set(`hitbox/rotation`,this.system_get([`renderer`,`rotation`]));
-        }
-    })
-    ,new en({
-        path:[`renderer/x`]
-        ,trigger:function([ov,v]){
-            this.set(`hitbox/x`,v);
-        }
-        ,onApply:function(){
-            this.set(`hitbox/x`,this.system_get([`renderer`,`x`]));
-        }
-    })
-    ,new en({
-        path:[`renderer/y`]
-        ,trigger:function([ov,v]){
-            this.set(`hitbox/y`,v);
-        }
-        ,onApply:function(){
-            this.set(`hitbox/y`,this.system_get([`renderer`,`y`]));
-        }
-    })
-];
-
-let linkHitboxToRenderer = 
-[
-    new en({
-        path:[`renderer/type`]
-        ,tags:[`linkHitboxToRenderer`]
-        ,trigger:function([ov,v]){
-            this.set(`hitbox/type`,v);
-            this.remove(...this.anyNodeByTag(ov));
-            this.add(...Links[v]);
-        }
-        ,onApply:function(){
-            let rType = this.system_get([`renderer`,`type`]);
-            this.set(`hitbox/type`,rType);
-            this.add(...Base);
-            this.add(
-                ...Links[rType]
-            );
-        }
-    })
-];
-
-var linkHitboxToRenderer$1 = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    linkHitboxToRenderer: linkHitboxToRenderer
-});
-
-class script {
-    #defaults = {
-        fired:function(){}
-        ,signal: `script`
-    }
-    constructor(configuration){
-        Object.assign(this,this.#defaults,configuration,{type:`script`});
-    }
-}
-
-const convert = utilities.system_signal_converter;
-const EVENT_SCRIPT_DEFAULTS = 
-{
-    path: `properties/x`
-    ,fired(){}
-    ,on_insert(){}
-    ,on_removal(){}
-    ,detect: `set`
-};
-
-class event extends script
-{
-    constructor
-    (
-        path = `properties/x`
-        ,fired_function = function(){}
-        ,on_insert_function = function(){}
-        ,on_removal_function = function(){}
-        ,detect = `set`
-    )
-    {
-        let raw_path;
-        let raw_detect;
-        let rest = {};
-        if (typeof path === `object`)
-        {
-            ({path: raw_path, detect: raw_detect, ...rest} = 
-            {
-                ...EVENT_SCRIPT_DEFAULTS
-                ,...path
-            });
-        }
-        else
-        {
-            raw_path = path;
-            raw_detect = detect;
-            rest = 
-            {
-                fired: fired_function
-                ,on_insert: on_insert_function
-                ,on_removal: on_removal_function
-                ,event_node: true
-            };
-        }
-
-        super
-        (
-            {
-                ...rest
-                ,signal: convert(raw_path, raw_detect)
-            }
-        );
-
-    }
-}
-
-var event$1 = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    event: event
-});
-
-const FRAME_SCRIPT_DEFAULTS = 
-{
-    fired_function(){}
-    ,on_insert_function(){}
-    ,on_removal_function(){}
-    ,detect: `update`
-};
-
-class frame extends script
-{
-    constructor
-    (
-        fired_function = function(){}
-        ,on_insert_function = function(){}
-        ,on_removal_function = function(){}
-        ,detect = `update`
-    )
-    {
-        let raw_detect;
-        let rest;
-        if (typeof fired_function === `object`)
-        {
-            (
-                {detect: raw_detect, ...rest} = 
-                {
-                    ...FRAME_SCRIPT_DEFAULTS
-                    ,...fired_function
-                }
-            );
-        }
-        else
-        {
-            raw_detect = detect;
-            rest = 
-            {
-                fired: fired_function
-                ,on_insert: on_insert_function
-                ,on_removal: on_removal_function
-                ,detect
-            };
-        }
-        super
-        (
-            {
-                ...rest
-                ,signal: `-u$${raw_detect[0]}`
-            }
-        );
-    }
-}
-
-var frame$1 = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    frame: frame
-});
-
-const scripts = {
-    ...event$1
-    ,...frame$1
-};
-
-var scripts$1 = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    scripts: scripts
-});
-
-let presets = {
-    ...system_presets$1
-    ,...mouse$1
-    ,...effect$1
-    ,...linkHitboxToRenderer$1
-    ,...scripts$1
-};
-
 class Game{
     idList = {};
     Canvas = new Canvas();
@@ -1951,6 +1868,7 @@ class Game{
     presets = presets;
     utils = utils$1;
     script = script;
+    v9 = v9;
     mouse = {
         x: 0
         ,y: 0
@@ -1964,12 +1882,6 @@ class Game{
     constructor(){
         let game = this;
         this.element = class extends element{
-            constructor(properties,renderer,hitbox,...allNodes){
-                super(properties,renderer,hitbox,...allNodes);
-                game.addElement(this);
-            }
-        };
-        this.entity = class extends entity{
             constructor(properties,renderer,hitbox,...allNodes){
                 super(properties,renderer,hitbox,...allNodes);
                 game.addElement(this);
