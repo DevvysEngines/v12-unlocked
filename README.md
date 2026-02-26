@@ -1,5 +1,5 @@
 # Unlocked.js
-## (In Progress)
+<sub>(In Progress)</sub>
 
 > **"Sometimes you have to dive to soar higher—unless you have an engine."**
 
@@ -22,5 +22,4 @@ This project is licensed under the [MIT License](LICENSE).
 You're free to use, modify, and distribute it — just make sure to credit the original project.
 
 Thank you!
-
-#### Unlocked - v0.65.0
+##### Unlocked - v0.65.0
