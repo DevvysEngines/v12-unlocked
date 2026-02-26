@@ -25,6 +25,9 @@ Lessons:
 Lessons:
 https://docs.google.com/document/d/1ruVSFHxC4LGEdxV5c3sJ9gNheChTE4vn1jCSV5MqUSY/edit?usp=sharing
 
+## Examples
+
+See [EXAMPLE.md](EXAMPLE.md) for usage examples.
 
 ## License
 
