@@ -54,7 +54,7 @@ export class chunk{
         //this.renderChunk(ctx);
         Object.keys(this.elements).forEach((key)=>{
             //console.log(`rgb(${key})`)
-            ctx.fillStyle = `rgb(${key})`;
+            ctx.fillStyle = `rgba(${key})`;
             ctx.beginPath();
             Object.values(this.elements[key]).forEach((element)=>{
                 element.render(ctx);

@@ -39,7 +39,8 @@ export function script_handler(sCls)
         (script=this.context)
         {
             if (typeof script == `string`)script = this.script(script);
-            this.set();
+            this.delete(`scripts_storage/${script.proto.signal}/${script.id}`);
+            this.delete(`scripts_storage/${script.id}`);
         }
         script
         (id=this.context.id)
@@ -73,6 +74,7 @@ export function script_handler(sCls)
             Object.keys(scripts).forEach((id)=>
             {
                 let script = this.script(id);
+                if (!script)return;
                 script.run
                 (
                     ...args,

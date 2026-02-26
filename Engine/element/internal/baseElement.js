@@ -1,6 +1,7 @@
 import { game } from "../../Unlocked.js";
 import { types } from "../../internal/types.js"
 import { utils } from "../../utilities/utils.js";
+import { presets } from "../../presets/presets.js";
 import { module } from "../../systems/v9/module/module.js";
 
 const FILE_VALUE_DEFAULTS = 
@@ -145,6 +146,9 @@ export class baseElement extends module {
             scripts.push(possible_initilization);
             possible_initilization = false;
         }
+
+        this.use
+        (...presets.system_presets.base_element)
 
         this.use
         (...scripts);

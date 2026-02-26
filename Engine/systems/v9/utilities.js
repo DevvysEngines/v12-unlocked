@@ -44,8 +44,9 @@ export class utilities {
             module.set_context(script);
             let call = script.proto[type].call(module,...args);
             module.remove_context();
-            if (typeof call != `object`)return;
-            Object.assign(script,call);
+            if (call === undefined) return;
+            if (Array.isArray(call)) { script.info = call; return; }
+            if (typeof call === `object`) Object.assign(script, call);
         }
     }
 }

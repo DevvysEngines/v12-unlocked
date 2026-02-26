@@ -3,11 +3,11 @@ import { events } from "../events/events.js";
 import { scene } from "./scene.js";
 import { frame } from "./frame.js";
 import { element } from "../element/element.js";
-import { entity } from "../classes/entity.js";
 import { eventNode } from "../events/eventNode.js";
 import { presets } from "../presets/presets.js";
 import { node } from "./node.js";
 import { utils } from "../utilities/utils.js";
+import { v9 } from "../systems/v9/v9.js";
 import { script } from "../systems/v9/script.js"
 
 export class Game{
@@ -21,6 +21,7 @@ export class Game{
     presets = presets;
     utils = utils;
     script = script;
+    v9 = v9;
     mouse = {
         x: 0
         ,y: 0
@@ -34,12 +35,6 @@ export class Game{
     constructor(){
         let game = this;
         this.element = class extends element{
-            constructor(properties,renderer,hitbox,...allNodes){
-                super(properties,renderer,hitbox,...allNodes);
-                game.addElement(this);
-            }
-        }
-        this.entity = class extends entity{
             constructor(properties,renderer,hitbox,...allNodes){
                 super(properties,renderer,hitbox,...allNodes);
                 game.addElement(this);

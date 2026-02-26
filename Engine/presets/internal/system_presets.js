@@ -1,4 +1,40 @@
-import { game } from "../../Unlocked.js";
+import { scripts } from "./scripts/script.js";
+import { v9 } from "../../systems/v9/v9.js";
+
+export const system_presets = 
+{
+    base_element: 
+    [
+        [
+            new scripts.event
+            (
+                {
+                    path: `scripts_storage/`
+                    ,fired([,new_script]){
+                        if (new_script.proto.on_insert){
+                            v9.utilities.ctxUse(new_script,this,'on_insert')(...new_script.info);
+                        }
+                    }      
+                }
+            )
+        ]
+        ,[
+            new scripts.event
+            (
+                {
+                    path: `scripts_storage/`
+                    ,detect: `delete`
+                    ,fired([old_script]){
+                        if (old_script.proto.on_removal){
+                            v9.utilities.ctxUse(old_script,this,'on_removal')(...old_script.info);
+                        }
+                    }      
+                }
+            )
+        ]
+    ]
+}
+/*
 import { eventNode } from "../../events/eventNode.js";
 import { scene } from "../../internal/scene.js";
 let en = eventNode;
@@ -32,3 +68,4 @@ export let system_presets = {
         ,[new en(`usesMouseChange`,[`system/input`],[`properties/usesMouse`],undefined,function(){let chunk = this.chunk;if(!chunk)return;game.currentscene.moveElementToChunk(this,chunk);})]
     ]
 }
+*/

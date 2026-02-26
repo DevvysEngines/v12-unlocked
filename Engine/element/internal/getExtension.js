@@ -19,7 +19,6 @@ get_extension
         ()
         {
             const rend = this.system_get([`renderer`]);
-            console.log(rend.color)
             return game.utils.giveColorWithTables(rend.color,rend.transparency);
         }
 
